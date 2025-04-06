@@ -6,6 +6,67 @@ from gym import spaces
 import matplotlib.pyplot as plt
 import copy
 import math
+import time
+
+class MCTSNode:
+    def __init__(self, state, score, parent=None, action=None):
+        self.state = state
+        self.score = score
+        self.parent = parent
+        self.action = action
+        self.children = {}
+        self.visits = 0
+        self.value = 0.0
+        self.untried_actions = get_legal_moves(state, score)
+
+    def is_fully_expanded(self):
+        return len(self.untried_actions) == 0
+
+    def best_child(self, c_param=1.4):
+        choices = [
+            (child.value / (child.visits + 1e-6) + c_param * math.sqrt(math.log(self.visits + 1) / (child.visits + 1e-6)), action, child)
+            for action, child in self.children.items()
+        ]
+        return max(choices, key=lambda x: x[0])[1:]
+
+    def expand(self):
+        action = self.untried_actions.pop()
+        afterstate, reward = compute_afterstate_from_state(self.state, self.score, action)
+        child = MCTSNode(afterstate, self.score + reward, parent=self, action=action)
+        self.children[action] = child
+        return child
+
+    def backpropagate(self, reward):
+        self.visits += 1
+        self.value += reward
+        if self.parent:
+            self.parent.backpropagate(reward)
+
+    def best_action(self):
+        return max(self.children.items(), key=lambda x: x[1].visits)[0]
+
+def mcts_search(state, score, approximator, time_limit=0.08):
+    root = MCTSNode(state, score)
+    start_time = time.time()
+
+    while time.time() - start_time < time_limit:
+        node = root
+
+        # Selection
+        while node.is_fully_expanded() and node.children:
+            _, node = node.best_child()
+
+        # Expansion
+        if not node.is_fully_expanded():
+            node = node.expand()
+
+        # Simulation using NTuple value
+        rollout_value = approximator.value(node.state)
+
+        # Backpropagation
+        node.backpropagate(rollout_value)
+
+    return root.best_action()
 
 # -------------------------------
 # Transformation functions for board coordinates.
@@ -363,7 +424,7 @@ def get_legal_moves(state, score):
             moves.append(action)
     return moves
 
-
+# code for submitting to eval server
 # Load the N-Tuple approximator
 with open('ntuple_approximator.pkl', 'rb') as f:
     approximator = pickle.load(f)
@@ -374,36 +435,20 @@ env = Game2048Env()
 state = env.reset()
 
 def get_action(state, score):
-    """
-    Selects an action based on greedy evaluation with the NTupleApproximator.
-    For each legal move, it computes the afterstate and its value as:
-      value = immediate_reward + approximator.value(afterstate)
-    and returns the action that yields the highest value.
-    """
     global approximator
-    # Load the NTupleApproximator from file if not already loaded.
     if approximator is None:
         try:
             with open("ntuple_approximator.pkl", "rb") as f:
                 approximator = pickle.load(f)
-        except Exception as e:
-            # If loading fails, return a random action.
+        except Exception:
             return random.choice([0, 1, 2, 3])
-    
+
     moves = get_legal_moves(state, score)
     if not moves:
         return random.choice([0, 1, 2, 3])
-    
-    best_action = None
-    best_value = -float('inf')
-    for action in moves:
-        afterstate, immediate_reward = compute_afterstate_from_state(state, score, action)
-        # The value is the sum of the immediate reward and the approximator's estimate.
-        value = immediate_reward + approximator.value(afterstate)
-        if value > best_value:
-            best_value = value
-            best_action = action
-    return best_action
+
+    # MCTS with NTuple evaluation
+    return mcts_search(state, score, approximator, time_limit=0.3)
 
 """
 if __name__ == '__main__':
@@ -417,13 +462,18 @@ if __name__ == '__main__':
     state = env.reset()
     done = False
 
+    i = 0 
+    start = time.time()
     while not done:
-        # Get the action using the NTupleApproximator
+        if i % 10 == 0:
+            print(f"Score: {env.score}")
+            print(f"Time: {time.time() - start:.2f} seconds")
+
         action = get_action(state, env.score)
 
         # Execute the action in the environment
         state, reward, done, _ = env.step(action)
+        i += 1
 
     print(f"Game Over! Final Score: {env.score}")
-
 """
