@@ -7,6 +7,20 @@ import matplotlib.pyplot as plt
 import copy
 import math
 import time
+from collections import defaultdict
+
+# Expectimax-style evaluation of afterstate using expected value after random tile placement
+def expected_afterstate_value(board, approximator):
+    empty_cells = list(zip(*np.where(board == 0)))
+    if not empty_cells:
+        return approximator.value(board)
+    expected_value = 0
+    for (r, c) in empty_cells:
+        for val, prob in [(2, 0.9), (4, 0.1)]:
+            temp_board = board.copy()
+            temp_board[r, c] = val
+            expected_value += prob * approximator.value(temp_board)
+    return expected_value / len(empty_cells)
 
 class MCTSNode:
     def __init__(self, state, score, parent=None, action=None):
@@ -45,25 +59,20 @@ class MCTSNode:
     def best_action(self):
         return max(self.children.items(), key=lambda x: x[1].visits)[0]
 
-def mcts_search(state, score, approximator, time_limit=0.08):
+def mcts_search(state, score, approximator, time_limit=0.3):
     root = MCTSNode(state, score)
     start_time = time.time()
 
     while time.time() - start_time < time_limit:
         node = root
 
-        # Selection
         while node.is_fully_expanded() and node.children:
             _, node = node.best_child()
 
-        # Expansion
         if not node.is_fully_expanded():
             node = node.expand()
 
-        # Simulation using NTuple value
-        rollout_value = approximator.value(node.state)
-
-        # Backpropagation
+        rollout_value = expected_afterstate_value(node.state, approximator)
         node.backpropagate(rollout_value)
 
     return root.best_action()
@@ -447,8 +456,36 @@ def get_action(state, score):
     if not moves:
         return random.choice([0, 1, 2, 3])
 
-    # MCTS with NTuple evaluation
-    return mcts_search(state, score, approximator, time_limit=0.3)
+    return mcts_search(state, score, approximator, time_limit=0.25)
+
+def get_action_without_mcts(state, score):
+    """
+    Currently unused, just for testing purposes.
+    """
+    global approximator
+    # Load the NTupleApproximator from file if not already loaded.
+    if approximator is None:
+        try:
+            with open("ntuple_approximator.pkl", "rb") as f:
+                approximator = pickle.load(f)
+        except Exception as e:
+            # If loading fails, return a random action.
+            return random.choice([0, 1, 2, 3])
+    
+    moves = get_legal_moves(state, score)
+    if not moves:
+        return random.choice([0, 1, 2, 3])
+    
+    best_action = None
+    best_value = -float('inf')
+    for action in moves:
+        afterstate, immediate_reward = compute_afterstate_from_state(state, score, action)
+        # The value is the sum of the immediate reward and the approximator's estimate.
+        value = immediate_reward + approximator.value(afterstate)
+        if value > best_value:
+            best_value = value
+            best_action = action
+    return best_action
 
 """
 if __name__ == '__main__':

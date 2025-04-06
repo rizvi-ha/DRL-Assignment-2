@@ -132,9 +132,6 @@ def td_learning(env, approximator, num_episodes=50000, alpha=0.01, gamma=0.99, e
 
 # -------------------------------
 # Define a few n-tuple patterns.
-# For example, we use each row (horizontal 4-tuples) and each column (vertical 4-tuples),
-# and add one 2x2 square.
-# (In practice you could add many more patterns as described in the paper.)
 # -------------------------------
 
 # Horizontal 4-tuples: each row
@@ -144,10 +141,23 @@ patterns += [[(j, i) for j in range(4)] for i in range(4)]
 # A 2x2 square pattern (top-left)
 patterns.append([(0,0), (0,1), (1,0), (1,1)])
 
+# Additional diverse patterns
+patterns += [
+    [(0, 0), (1, 1), (2, 2), (3, 3)],
+    [(0, 3), (1, 2), (2, 1), (3, 0)],
+    [(0, 0), (0, 1), (1, 1), (1, 2)],
+    [(2, 2), (2, 3), (3, 3), (3, 2)],
+    [(1, 1), (1, 2), (2, 1), (2, 2)],
+    [(0, 0), (0, 1), (1, 0), (2, 0)],
+    [(0, 0), (1, 0), (1, 1), (2, 1)],
+    [(2, 2), (3, 2), (3, 3), (2, 3)]
+]
+
 # Initialize the approximator and the game environment. If already exists pickled version, load
 if os.path.exists("ntuple_approximator.pkl"):
     with open("ntuple_approximator.pkl", "rb") as f:
         approximator = pickle.load(f)
+    print("Loaded existing NTupleApproximator from file.")
 else:
     approximator = NTupleApproximator(board_size=4, patterns=patterns)
 
