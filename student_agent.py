@@ -9,18 +9,8 @@ import math
 import time
 from collections import defaultdict
 
-# Expectimax-style evaluation of afterstate using expected value after random tile placement
 def expected_afterstate_value(board, approximator):
-    empty_cells = list(zip(*np.where(board == 0)))
-    if not empty_cells:
-        return approximator.value(board)
-    expected_value = 0
-    for (r, c) in empty_cells:
-        for val, prob in [(2, 0.9), (4, 0.1)]:
-            temp_board = board.copy()
-            temp_board[r, c] = val
-            expected_value += prob * approximator.value(temp_board)
-    return expected_value / len(empty_cells)
+    return approximator.value(board)
 
 class MCTSNode:
     def __init__(self, state, score, parent=None, action=None):
@@ -82,9 +72,6 @@ def mcts_search(state, score, approximator, time_limit=0.3):
 # These functions take a coordinate (r, c) on a board of size N.
 # -------------------------------
 
-def identity(coord, board_size):
-    return coord
-
 def rot90(coord, board_size):
     r, c = coord
     return (c, board_size - 1 - r)
@@ -100,19 +87,6 @@ def rot270(coord, board_size):
 def reflect_horizontal(coord, board_size):
     r, c = coord
     return (r, board_size - 1 - c)
-
-def reflect_vertical(coord, board_size):
-    r, c = coord
-    return (board_size - 1 - r, c)
-
-def reflect_main_diag(coord, board_size):
-    r, c = coord
-    return (c, r)
-
-def reflect_anti_diag(coord, board_size):
-    r, c = coord
-    return (board_size - 1 - c, board_size - 1 - r)
-
 
 # -------------------------------
 # NTupleApproximator using symmetric sampling.
@@ -450,13 +424,13 @@ def get_action(state, score):
             with open("ntuple_approximator.pkl", "rb") as f:
                 approximator = pickle.load(f)
         except Exception:
-            return random.choice([0, 1, 2, 3])
+            exit(1)
 
     moves = get_legal_moves(state, score)
     if not moves:
         return random.choice([0, 1, 2, 3])
 
-    return mcts_search(state, score, approximator, time_limit=0.25)
+    return mcts_search(state, score, approximator, time_limit=0.35)
 
 def get_action_without_mcts(state, score):
     """
@@ -487,7 +461,7 @@ def get_action_without_mcts(state, score):
             best_action = action
     return best_action
 
-"""
+'''
 if __name__ == '__main__':
     # Load the N-Tuple approximator
     with open('ntuple_approximator.pkl', 'rb') as f:
@@ -513,4 +487,4 @@ if __name__ == '__main__':
         i += 1
 
     print(f"Game Over! Final Score: {env.score}")
-"""
+'''
